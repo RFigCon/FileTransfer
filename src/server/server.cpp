@@ -271,12 +271,13 @@ int main(int argc, char* argv[]){
 
     while(true){
         new_fd = accept(sockfd, (struct sockaddr*)&client_addr, &addr_size);
-        std::thread th(handle_client, new_fd);
-        thrds.push_back(&th);
+        std::thread* th = new std::thread(handle_client, new_fd);
+        thrds.push_back(th);
     }
 
     for(auto t : thrds){
         t->join();
+        delete t;
     }
 
     #ifdef OS_WIN
