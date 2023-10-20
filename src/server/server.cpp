@@ -41,7 +41,7 @@ void conn_info(struct addrinfo* addr_info){
     }
 
     inet_ntop(addr_info->ai_family, addr, ipstr, sizeof ipstr);
-    std::cout << "Listening on " << ipstr << " on port " << port_n << std::endl;
+    std::cout << "Listening at " << ipstr << " on port " << port_n << std::endl;
     
 }
 
@@ -75,9 +75,9 @@ Message * get_request(int new_fd){
     return msg;
 }
 
-void send_msg(int clientfd, Message * msg){
+void send_msg(int clientfd, Message& msg){
     int bytes_sent;
-    unsigned int msg_bytes = msg->size();
+    unsigned int msg_bytes = msg.size();
 
     unsigned int msg_b_n = htonl(msg_bytes);
     bytes_sent = send(clientfd, &msg_b_n, 4, 0); //0 is the value passed to the *flags* argument
@@ -86,7 +86,7 @@ void send_msg(int clientfd, Message * msg){
         return;
     }
 
-    char* msg_start = msg->get_msg();
+    char* msg_start = msg.get_msg();
 
     do{
         bytes_sent = send(clientfd, msg_start, msg_bytes, 0); //0 is the value passed to the *flags* argument
@@ -108,6 +108,28 @@ void cpy_str(char* str, const char* cstr){
     }
 }
 
+void print_help(int clientfd){
+
+    char stat_byte = ServerCodes::CON_ON + ServerCodes::INFO;
+
+    std::string str(1, stat_byte);
+    str.append( "Possible commands:\n" );
+
+    str.append( "\t'h' to print this help screen\n" );
+    
+    str.append( "\t'l' to list all available files\n" );
+    
+    str.append( "\t'g' to download a file\n" );
+
+    str.append( "\t'e' to close connection" );
+    
+
+    Message msg(str);
+    std::cout << "created message" << std::endl;
+    send_msg(clientfd, msg);
+    std::cout << "sent message" << std::endl;
+}
+
 void inform(int clientfd, const char* str){
 
     const char * str_pt = str;
@@ -122,10 +144,20 @@ void inform(int clientfd, const char* str){
     arr[0]+= ServerCodes::INFO;
 
     cpy_str(arr+1, str);
-    Message* msg = new Message(arr, len+1);
+    Message msg(arr, len+1);
 
     send_msg(clientfd, msg);
 
+}
+
+void discon_client(int clientfd){
+    char stat_byte = ServerCodes::CON_OFF + ServerCodes::INFO;
+
+    std::string str(1, stat_byte);
+    str.append( "Goodbye!" );
+
+    Message msg(str);
+    send_msg(clientfd, msg);
 }
 
 bool load_and_send_file(int clientfd, Message* msg){
@@ -139,13 +171,12 @@ bool load_and_send_file(int clientfd, Message* msg){
 
     std::cout << "Loading file..." << std::endl;
 
-    ServerFile* file = new ServerFile(filename, stat_byte);
+    ServerFile file(filename, stat_byte);
 
-    if(file->failed()){
-        std::cout << "Loading the file failed with error code " << (int)(file->errcode()) << ".\n";
+    if(file.failed()){
+        std::cout << "Loading the file failed with error code " << (int)(file.errcode()) << ".\n";
         inform(clientfd, "File could not be retrieved.");
 
-        delete file;
         return false;
     }
 
@@ -153,33 +184,34 @@ bool load_and_send_file(int clientfd, Message* msg){
     send_msg(clientfd, file);
     std::cout << "File sent. || id: "  << std::this_thread::get_id() << std::endl;
 
-    delete file;
     return true;
 }
 
-bool proccess_request(int clientfd, Message * msg){
+bool proccess_request(int clientfd, Message * msg, bool &awaiting_filename){
 
     //NOT THREAD SAFE
-    static bool awaiting_filename = false;
+    //static bool awaiting_filename = false;
     //---------------
     bool terminate = false;
 
-    if(!awaiting_filename){
+    if(awaiting_filename == false){
         char c = msg->get(0);
             switch(c){
             case 'h':
-                inform(clientfd, "TODO: Show available commands.");
-                //TODO:
-                //print_help();
+                print_help(clientfd);
                 break;
             case 'l':
                 inform(clientfd, "TODO: Show available files.");
                 //TODO:
-                //list_files();
+                //list_files(clientfd);
                 break;
             case 'g':
                 inform(clientfd, "Which file do you wish to retrieve?");
                 awaiting_filename = true;
+                break;
+            case 'e':
+                discon_client(clientfd);
+                terminate = true;
                 break;
             default:
                 inform(clientfd, "Invalid command.");
@@ -192,12 +224,11 @@ bool proccess_request(int clientfd, Message * msg){
 
     }
 
-    delete msg;
-
     return terminate;
 }
 
 void handle_client(int clientfd){
+    bool awaiting_filename = false;
     bool terminate = false;
     std::cout << "Handling client! || id: " << std::this_thread::get_id() << std::endl;
 
@@ -209,7 +240,8 @@ void handle_client(int clientfd){
             exit(1);
         }
 
-        terminate = proccess_request(clientfd, msg);
+        terminate = proccess_request(clientfd, msg, awaiting_filename);
+        delete msg;
     }
 
     #ifdef OS_WIN

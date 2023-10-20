@@ -12,8 +12,8 @@ public:
         msg = buff;
     }
 
-    Message(std::string buff, unsigned int len) {
-        bytes = len;
+    Message(std::string buff) {
+        bytes = buff.size();
 
         msg = (char*)malloc(bytes);
         strcpy(msg, buff.c_str());

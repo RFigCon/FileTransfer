@@ -62,7 +62,7 @@ struct addrinfo* get_socket_fd(std::string IP_STR, std::string PORT_STR){
     return ad_info;
 }
 
-void save_file(Message * buff){
+void save_file(Message& buff){
 
     std::string filename = "server_file";
 
@@ -79,11 +79,11 @@ void save_file(Message * buff){
         return;
     }
 
-    unsigned char * msg = (unsigned char *)buff->get_msg();
+    unsigned char * msg = (unsigned char *)buff.get_msg();
     long idx = 0;
     std::cout << "Stop 2!" << std::endl;
 
-    while(buff->size() != idx){
+    while(buff.size() != idx){
         unsigned char byte = msg[idx];
 
         outfile.put( byte );
@@ -98,15 +98,15 @@ void save_file(Message * buff){
     std::cout << "File saved as " << filename << std::endl;
 }
 
-void write_server_msg(Message * buff){
+void write_server_msg(Message& buff){
 
     char c;
     long idx = 0;
 
     //std::cout << "----Message From Server----" << std::endl;
     std::cout << " << ";
-    while(buff->size() != idx){
-        c = buff->get(idx);
+    while(buff.size() != idx){
+        c = buff.get(idx);
         std::cout << c;
         if(c=='\n'){
             std::cout << " << ";
@@ -114,7 +114,7 @@ void write_server_msg(Message * buff){
         idx++;
     }
 
-    if(buff->get(idx - 1) != '\n'){
+    if(buff.get(idx - 1) != '\n'){
         std::cout << std::endl;
     }
     //std::cout << "-----Message Finished-----" << std::endl;
@@ -126,7 +126,7 @@ Message * get_command(){
     std::cout << " >> ";
     std::cin >> cmd_str;
     
-    return new Message(cmd_str, cmd_str.size());
+    return new Message(cmd_str);
 }
 
 int send_request(int sockfd, Message* req){
@@ -171,10 +171,6 @@ bool await_and_proccess_response(int sockfd){
 
     msg_size = ntohl(msg_size) - 1; //Deal with status byte separately from rest of the message
     
-    // if(msg_size == - 1){
-    //     std::cout << "The server could not perform the desired action." << std::endl;
-    //     return terminate;
-    // }
     char* msg = (char*)malloc(msg_size); 
 
     //Receive the status byte
@@ -198,7 +194,7 @@ bool await_and_proccess_response(int sockfd){
         msg_ptr += bytes_received;
     }while(bytes_to_rec>0);
 
-    Message *rsp = new Message(msg, msg_size);
+    Message rsp(msg, msg_size);
 
 
     char status = stat_byte & ServerCodes::CON_MASK;
@@ -220,7 +216,7 @@ bool await_and_proccess_response(int sockfd){
             break;
     }
 
-    delete(rsp);
+    //delete(rsp);
     return terminate;
 }
 
@@ -237,7 +233,7 @@ int main(int argc, char* argv[]){
 
     std::cout << "----SERVER INFO----" << std::endl;
     std::cout << "Connected to Address: " << args.server_addr << std::endl;
-    std::cout << "At Port: " << args.server_port << std::endl;
+    std::cout << "On Port: " << args.server_port << std::endl;
     std::cout << "-------------------" << std::endl;
 
     struct addrinfo * ad_info = get_socket_fd( args.server_addr, args.server_port );
