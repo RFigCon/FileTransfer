@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <thread>
 #include <vector>
+#include <filesystem>
 
 #if defined(_WIN32) || defined(WIN32) || defined(__CYGWIN__) || defined(__MINGW32__)
     #define OS_WIN
@@ -110,7 +111,7 @@ void cpy_str(char* str, const char* cstr){
 
 void print_help(int clientfd){
 
-    char stat_byte = ServerCodes::CON_ON + ServerCodes::INFO;
+    char stat_byte = ServerCodes::CON_ON | ServerCodes::INFO;
 
     std::string str(1, stat_byte);
     str.append( "Possible commands:\n" );
@@ -125,9 +126,28 @@ void print_help(int clientfd){
     
 
     Message msg(str);
-    std::cout << "created message" << std::endl;
+    std::cout << "created message || id: "  << std::this_thread::get_id() << std::endl;
     send_msg(clientfd, msg);
-    std::cout << "sent message" << std::endl;
+    std::cout << "sent message || id: "  << std::this_thread::get_id() << std::endl;
+}
+
+void list_files(int clientfd){
+    char stat_byte = ServerCodes::CON_ON | ServerCodes::INFO;
+
+    std::string str(1, stat_byte);
+    
+    str.append("Available Files:");
+    for(std::filesystem::directory_entry elem : std::filesystem::directory_iterator(FILES_DIR)){
+        if(elem.is_regular_file()){
+            str.append("\n\t");
+            str.append(elem.path().filename());
+        }
+    }
+
+    Message msg(str);
+    std::cout << "created file list || id: "  << std::this_thread::get_id() << std::endl;
+    send_msg(clientfd, msg);
+    std::cout << "sent file list || id: "  << std::this_thread::get_id() << std::endl;
 }
 
 void inform(int clientfd, const char* str){
@@ -140,8 +160,7 @@ void inform(int clientfd, const char* str){
     }
 
     char *arr = (char *)malloc(len + 1);
-    arr[0] = ServerCodes::CON_ON;
-    arr[0]+= ServerCodes::INFO;
+    arr[0] = ServerCodes::CON_ON | ServerCodes::INFO;
 
     cpy_str(arr+1, str);
     Message msg(arr, len+1);
@@ -151,7 +170,7 @@ void inform(int clientfd, const char* str){
 }
 
 void discon_client(int clientfd){
-    char stat_byte = ServerCodes::CON_OFF + ServerCodes::INFO;
+    char stat_byte = ServerCodes::CON_OFF | ServerCodes::INFO;
 
     std::string str(1, stat_byte);
     str.append( "Goodbye!" );
@@ -166,15 +185,14 @@ bool load_and_send_file(int clientfd, Message* msg){
 
     filename.append(msg->get_msg(), msg->size());
 
-    char stat_byte = ServerCodes::CON_OFF;
-    stat_byte += ServerCodes::FILE;
+    char stat_byte = ServerCodes::CON_OFF | ServerCodes::FILE;
 
-    std::cout << "Loading file..." << std::endl;
+    std::cout << "Loading file... || id: "  << std::this_thread::get_id() << std::endl;
 
     ServerFile file(filename, stat_byte);
 
     if(file.failed()){
-        std::cout << "Loading the file failed with error code " << (int)(file.errcode()) << ".\n";
+        std::cout << "Loading the file failed with error code " << (int)(file.errcode()) << ". || id: "  << std::this_thread::get_id() << std::endl;
         inform(clientfd, "File could not be retrieved.");
 
         return false;
@@ -201,9 +219,7 @@ bool proccess_request(int clientfd, Message * msg, bool &awaiting_filename){
                 print_help(clientfd);
                 break;
             case 'l':
-                inform(clientfd, "TODO: Show available files.");
-                //TODO:
-                //list_files(clientfd);
+                list_files(clientfd);
                 break;
             case 'g':
                 inform(clientfd, "Which file do you wish to retrieve?");
